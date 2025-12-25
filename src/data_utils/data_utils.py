@@ -9,7 +9,7 @@ def read_data(path):
 
 def prepare_dummy_cols(df, dummy_cols):
 
-    df_dummy = pd.get_dummies(df, columns=dummy_cols)
+    df_dummy = pd.get_dummies(df, columns=dummy_cols, drop_first=True)
 
     del df_dummy['Contador']
 

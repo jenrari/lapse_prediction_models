@@ -1,3 +1,4 @@
+from matplotlib.pyplot import title
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 import pandas as pd
@@ -27,12 +28,15 @@ def pca_2d(X_scaled, y):
 
     # Creating the plot
     plt.figure()
+    labels = {0: "0: no impago", 1: "1: impago"}
     for i in [0, 1]:
         plt.scatter(pca_df[pca_df['target'] == i]['PC1'],
-                    pca_df[pca_df['target'] == i]['PC2'], label=i, alpha=.8)
+                    pca_df[pca_df['target'] == i]['PC2'],
+                    alpha=.8,
+                    label = labels[i])
 
     plt.title('PCA')
-    plt.legend()
+    plt.legend(title="Clase")
     plt.show()
 
 
@@ -87,10 +91,14 @@ def tsne_2d(X_scaled,y):
     tsne_df['target'] = y
 
     plt.figure()
+    labels = {0: "0: no impago", 1: "1: impago"}
     for i in [0, 1]:
         plt.scatter(tsne_df[tsne_df['target'] == i]['TSNE1'],
-                    tsne_df[tsne_df['target'] == i]['TSNE2'], alpha=.8)
+                    tsne_df[tsne_df['target'] == i]['TSNE2'],
+                    label=labels[i],
+                    alpha=.8)
 
     plt.title('T-distributed Stochastic Neighbor Embedding')
+    plt.legend(title="Clase")
     plt.show()
 

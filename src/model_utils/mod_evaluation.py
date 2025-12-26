@@ -107,6 +107,144 @@ def threshold_max_recall_given_precision(y_true, y_proba, min_precision=0.20, fa
     best_abs = valid_idx[np.argmax(rec_t[mask])]
     return thr[best_abs], prec_t[best_abs], rec_t[best_abs]
 
+def best_threshold_max_fbeta(y_true, y_proba, beta=2.0):
+    prec, rec, thr = precision_recall_curve(y_true, y_proba)
+    prec_t, rec_t = prec[:-1], rec[:-1]
+    b2 = beta**2
+    fbeta = (1+b2) * prec_t * rec_t / (b2*prec_t + rec_t + 1e-12)
+    i = np.argmax(fbeta)
+    return float(thr[i]), float(prec_t[i]), float(rec_t[i]), float(fbeta[i])
+
+
+def run_model_and_evaluate_reg_log2(
+    X_train, y_train, X_test, y_test, solver='lbfgs', sampler=None, sampling_strategy=None,
+        balanced=None):
+    oversamplers = {
+        "smote": over_sm,
+        "adasyn": over_adasyn,
+        "b_smote": over_bsm,
+        "svm_smote": over_svmsm,
+        "ro": over_random
+    }
+
+    if balanced is None:
+        model = LogisticRegression(max_iter=3000,
+                                   solver=solver,
+                                   random_state=42)
+    else:
+        model = LogisticRegression(class_weight="balanced",
+                                   solver=solver,
+                                   max_iter=3000,
+                                   random_state=42)
+
+    # 1) Split train/val (val sin oversampling)
+    X_tr, X_val, y_tr, y_val = train_test_split(
+        X_train, y_train, test_size=0.2, stratify=y_train, random_state=42
+    )
+
+    # 2) Oversampling solo en sub-train
+    if sampler is not None:
+        X_tr_fit, y_tr_fit = oversamplers[sampler](X_tr, y_tr)
+    else:
+        X_tr_fit, y_tr_fit = X_tr, y_tr
+
+    # 3) Fit para elegir umbral
+    model.fit(X_tr_fit, y_tr_fit)
+
+    proba_val = model.predict_proba(X_val)[:, 1]
+    threshold, p_val, r_val, fbeta_val = best_threshold_max_fbeta(y_val, proba_val)
+
+    # 4) Refit final (opcional, como haces tú)
+    if sampler is not None:
+        X_train_fit, y_train_fit = oversamplers[sampler](X_train, y_train, sampling_strategy)
+    else:
+        X_train_fit, y_train_fit = X_train, y_train
+
+    model.fit(X_train_fit, y_train_fit)
+
+    y_train_proba = model.predict_proba(X_train)[:, 1]
+    y_test_proba  = model.predict_proba(X_test)[:, 1]
+
+    y_train_pred = (y_train_proba >= threshold).astype(int)
+    y_test_pred  = (y_test_proba  >= threshold).astype(int)
+
+    rf_metrics = model_evaluation_matrix(y_train, y_test, y_train_pred, y_test_pred, "LogisticRegression", (0, 1))
+    roc_auc_dict = generate_auc_roc_pr_auc(y_train, y_test, y_train_proba, y_test_proba)
+
+    fp_id = np.where((y_test == 0) & (y_test_pred == 1))[0]
+    fn_id = np.where((y_test == 1) & (y_test_pred == 0))[0]
+
+    extra = {
+        "threshold": threshold,
+        "val_precision_at_threshold": p_val,
+        "val_recall_at_threshold": r_val,
+        "sampler": sampler
+    }
+
+    return rf_metrics, roc_auc_dict, fp_id, fn_id, extra
+
+
+def run_model_and_evaluate(
+    name, model, X_train, y_train, X_test, y_test,
+    sampler=None, min_precision=0.20, threshold_fallback=0.5
+):
+    oversamplers = {
+        "smote": over_sm,
+        "adasyn": over_adasyn,
+        "b_smote": over_bsm,
+        "svm_smote": over_svmsm,
+        "ro": over_random
+    }
+
+    # 1) Split train/val (val sin oversampling)
+    X_tr, X_val, y_tr, y_val = train_test_split(
+        X_train, y_train, test_size=0.2, stratify=y_train, random_state=42
+    )
+
+    # 2) Oversampling solo en sub-train
+    if sampler is not None:
+        X_tr_fit, y_tr_fit = oversamplers[sampler](X_tr, y_tr)
+    else:
+        X_tr_fit, y_tr_fit = X_tr, y_tr
+
+    # 3) Fit para elegir umbral
+    model.fit(X_tr_fit, y_tr_fit)
+
+    proba_val = model.predict_proba(X_val)[:, 1]
+    threshold, p_val, r_val = threshold_max_recall_given_precision(
+        y_val, proba_val, min_precision=min_precision, fallback=threshold_fallback
+    )
+
+    # 4) Refit final (opcional, como haces tú)
+    if sampler is not None:
+        X_train_fit, y_train_fit = oversamplers[sampler](X_train, y_train)
+    else:
+        X_train_fit, y_train_fit = X_train, y_train
+
+    model.fit(X_train_fit, y_train_fit)
+
+    y_train_proba = model.predict_proba(X_train)[:, 1]
+    y_test_proba  = model.predict_proba(X_test)[:, 1]
+
+    y_train_pred = (y_train_proba >= threshold).astype(int)
+    y_test_pred  = (y_test_proba  >= threshold).astype(int)
+
+    rf_metrics = model_evaluation_matrix(y_train, y_test, y_train_pred, y_test_pred, name, (0, 1))
+    roc_auc_dict = generate_auc_roc_pr_auc(y_train, y_test, y_train_proba, y_test_proba)
+
+    fp_id = np.where((y_test == 0) & (y_test_pred == 1))[0]
+    fn_id = np.where((y_test == 1) & (y_test_pred == 0))[0]
+
+    extra = {
+        "threshold": threshold,
+        "val_precision_at_threshold": p_val,
+        "val_recall_at_threshold": r_val,
+        "sampler": sampler,
+        "min_precision": min_precision
+    }
+
+    return rf_metrics, roc_auc_dict, fp_id, fn_id, extra
+
 
 # def run_model_and_evaluate(name, model, X_train, y_train, X_test, y_test, sampler=None,
 #     min_precision=0.20):

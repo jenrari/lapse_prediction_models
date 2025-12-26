@@ -64,37 +64,6 @@ def generate_auc_roc_pr_auc(y_train, y_test, y_train_proba, y_test_proba):
             "pr-auc-test":pr_auc_test}
 
 
-def run_model_and_evaluate_reg_log(X_train, y_train, X_test, y_test, solver='lbfgs' ,balanced=None):
-
-    if balanced is None:
-        model = LogisticRegression(max_iter=3000,
-                                   solver=solver,
-                                   random_state=42)
-    else:
-        model = LogisticRegression(class_weight="balanced",
-                                   solver=solver,
-                                   max_iter=3000,
-                                   random_state=42)
-
-    model.fit(X_train, y_train)
-
-    y_train_pred = model.predict(X_train)
-    y_test_pred = model.predict(X_test)
-
-    rf_metrics = model_evaluation_matrix(y_train, y_test, y_train_pred, y_test_pred, "LogisticRegresion", (0, 1))
-
-    y_train_proba = model.predict_proba(X_train)[:, 1]
-    y_test_proba = model.predict_proba(X_test)[:, 1]
-
-    roc_auc_dict = generate_auc_roc_pr_auc(y_train, y_test, y_train_proba, y_test_proba)
-
-    # Devolvemos indices de falsos positivos y falsos negativos
-    fp_id = np.where((y_test == 0) & (y_test_pred == 1))[0]
-    fn_id = np.where((y_test == 1) & (y_test_pred == 0))[0]
-
-    return rf_metrics, roc_auc_dict, fp_id, fn_id
-
-
 def threshold_max_recall_given_precision(y_true, y_proba, min_precision=0.20, fallback=0.5):
     prec, rec, thr = precision_recall_curve(y_true, y_proba)
     prec_t, rec_t = prec[:-1], rec[:-1]  # alineados con thr
@@ -107,6 +76,7 @@ def threshold_max_recall_given_precision(y_true, y_proba, min_precision=0.20, fa
     best_abs = valid_idx[np.argmax(rec_t[mask])]
     return thr[best_abs], prec_t[best_abs], rec_t[best_abs]
 
+
 def best_threshold_max_fbeta(y_true, y_proba, beta=2.0):
     prec, rec, thr = precision_recall_curve(y_true, y_proba)
     prec_t, rec_t = prec[:-1], rec[:-1]
@@ -116,7 +86,7 @@ def best_threshold_max_fbeta(y_true, y_proba, beta=2.0):
     return float(thr[i]), float(prec_t[i]), float(rec_t[i]), float(fbeta[i])
 
 
-def run_model_and_evaluate_reg_log2(
+def run_model_and_evaluate_reg_log(
     X_train, y_train, X_test, y_test, solver='lbfgs', sampler=None, sampling_strategy=None,
         balanced=None):
     oversamplers = {
@@ -154,13 +124,13 @@ def run_model_and_evaluate_reg_log2(
     proba_val = model.predict_proba(X_val)[:, 1]
     threshold, p_val, r_val, fbeta_val = best_threshold_max_fbeta(y_val, proba_val)
 
-    # 4) Refit final (opcional, como haces tú)
-    if sampler is not None:
-        X_train_fit, y_train_fit = oversamplers[sampler](X_train, y_train, sampling_strategy)
-    else:
-        X_train_fit, y_train_fit = X_train, y_train
+    # # 4) Refit final (opcional, como haces tú)
+    # if sampler is not None:
+    #     X_train_fit, y_train_fit = oversamplers[sampler](X_train, y_train, sampling_strategy)
+    # else:
+    #     X_train_fit, y_train_fit = X_train, y_train
 
-    model.fit(X_train_fit, y_train_fit)
+    # model.fit(X_train_fit, y_train_fit)
 
     y_train_proba = model.predict_proba(X_train)[:, 1]
     y_test_proba  = model.predict_proba(X_test)[:, 1]

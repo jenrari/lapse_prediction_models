@@ -124,13 +124,13 @@ def run_model_and_evaluate_reg_log(
     proba_val = model.predict_proba(X_val)[:, 1]
     threshold, p_val, r_val, fbeta_val = best_threshold_max_fbeta(y_val, proba_val)
 
-    # # 4) Refit final (opcional, como haces tú)
-    # if sampler is not None:
-    #     X_train_fit, y_train_fit = oversamplers[sampler](X_train, y_train, sampling_strategy)
-    # else:
-    #     X_train_fit, y_train_fit = X_train, y_train
+    # 4) Refit final (opcional, como haces tú)
+    if sampler is not None:
+        X_train_fit, y_train_fit = oversamplers[sampler](X_train, y_train, sampling_strategy)
+    else:
+        X_train_fit, y_train_fit = X_train, y_train
 
-    # model.fit(X_train_fit, y_train_fit)
+    model.fit(X_train_fit, y_train_fit)
 
     y_train_proba = model.predict_proba(X_train)[:, 1]
     y_test_proba  = model.predict_proba(X_test)[:, 1]
@@ -216,61 +216,6 @@ def run_model_and_evaluate(
     return rf_metrics, roc_auc_dict, fp_id, fn_id, extra
 
 
-# def run_model_and_evaluate(name, model, X_train, y_train, X_test, y_test, sampler=None,
-#     min_precision=0.20):
-#     oversamplers = {
-#         "smote": over_sm,
-#         "adasyn": over_adasyn,
-#         "b_smote": over_bsm,
-#         "svm_smote": over_svmsm,
-#         "ro": over_random
-#     }
-#
-#     # 1) Split train/val (val sin SMOTE)
-#     X_tr, X_val, y_tr, y_val = train_test_split(
-#         X_train, y_train,
-#         test_size=0.2,
-#         stratify=y_train,
-#         random_state=42
-#     )
-#
-#     # 2) SMOTE solo en sub-train
-#     if sampler is not None:
-#         X_tr_fit, y_tr_fit = oversamplers[sampler](X_tr, y_tr)
-#     else:
-#         X_tr_fit, y_tr_fit = X_tr, y_tr
-#
-#     model.fit(X_tr_fit, y_tr_fit)
-#
-#     # 4) Elegir umbral en validación (real)
-#     proba_val = model.predict_proba(X_val)[:, 1]
-#     threshold = threshold_max_recall_given_precision(
-#         y_val, proba_val, min_precision=min_precision
-#     )
-#
-#     if sampler is not None:
-#         X_train_fit, y_train_fit = oversamplers[sampler](X_train, y_train)
-#     else:
-#         X_train_fit, y_train_fit = X_train, y_train
-#
-#     model.fit(X_train_fit, y_train_fit)
-#
-#     y_train_proba = model.predict_proba(X_train)[:, 1]
-#     y_test_proba = model.predict_proba(X_test)[:, 1]
-#
-#     y_train_pred = (y_train_proba >= threshold).astype(int)
-#     y_test_pred = (y_test_proba >= threshold).astype(int)
-#
-#     rf_metrics = model_evaluation_matrix(y_train, y_test, y_train_pred, y_test_pred, name, (0, 1))
-#
-#     roc_auc_dict = generate_auc_roc_pr_auc(y_train, y_test, y_train_proba, y_test_proba)
-#
-#     # Devolvemos indices de falsos positivos y falsos negativos
-#     fp_id = np.where((y_test == 0) & (y_test_pred == 1))[0]
-#     fn_id = np.where((y_test == 1) & (y_test_pred == 0))[0]
-#
-#     return rf_metrics, roc_auc_dict, fp_id, fn_id
-
 
 def shap_test(name, model, X_train, X_test, fp_id, fn_id):
 # Calculamos shap para el modelo
@@ -330,22 +275,3 @@ def shap_test(name, model, X_train, X_test, fp_id, fn_id):
     return explainer, fp_id, fn_id, X_test_fp, X_test_fn
 
 
-
-
-
-# def threshold_max_recall(y_true, proba, min_precision=0.20):
-#     """
-#     Devuelve el umbral que maximiza recall sujeto a precision >= min_precision.
-#     Si no se puede alcanzar min_precision, devuelve 0.5.
-#     """
-#     prec, rec, thr = precision_recall_curve(y_true, proba)
-#     prec_t = prec[:-1]
-#     rec_t  = rec[:-1]
-#
-#     ok = np.where(prec_t >= min_precision)[0]
-#     if len(ok) == 0:
-#         return 0.5
-#
-#     best = ok[np.argmax(rec_t[ok])]
-#     print(f"Mejor umbral elegido ha sido: {thr[best]}")
-#     return thr[best]

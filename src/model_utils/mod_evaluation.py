@@ -1,7 +1,8 @@
 import shap
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, confusion_matrix, ConfusionMatrixDisplay, classification_report, \
-    roc_auc_score, average_precision_score, precision_recall_curve
+    roc_auc_score, average_precision_score, precision_recall_curve, balanced_accuracy_score, precision_score, \
+    recall_score, f1_score
 import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.model_selection import train_test_split
@@ -9,40 +10,108 @@ from sklearn.model_selection import train_test_split
 from src.model_utils.oversampling import over_bsm, over_sm, over_adasyn, over_svmsm, over_random
 
 
-def model_evaluation_matrix(y_train, y_test, y_train_pred, y_test_pred, title, labels=None):
-    # Accuracies
+def model_evaluation_matrix(
+    y_train, y_test,
+    y_train_pred, y_test_pred,
+    title="model",
+    labels=(0, 1),
+    show_plot=True,
+    verbose=True
+):
+    # ---- Métricas principales (train/test) ----
     train_accuracy = accuracy_score(y_train, y_train_pred)
-    test_accuracy = accuracy_score(y_test, y_test_pred)
+    test_accuracy  = accuracy_score(y_test,  y_test_pred)
 
-    print(f"Accuracy (train): {train_accuracy:.4f}")
-    print(f"Accuracy (test) : {test_accuracy:.4f}")
+    # En desbalanceo, mejor añadir también:
+    train_bal_acc = balanced_accuracy_score(y_train, y_train_pred)
+    test_bal_acc  = balanced_accuracy_score(y_test,  y_test_pred)
 
-    # Matriz de confusión (sobre test)
+    # Precision/Recall/F1 para clase positiva (pos_label=1)
+    precision_test = precision_score(y_test, y_test_pred, pos_label=1, zero_division=0)
+    recall_test    = recall_score(y_test, y_test_pred, pos_label=1, zero_division=0)
+    f1_test        = f1_score(y_test, y_test_pred, pos_label=1, zero_division=0)
+
+    # Matriz de confusión (test)
     conf_matrix = confusion_matrix(y_test, y_test_pred, labels=labels)
+    tn, fp, fn, tp = conf_matrix.ravel()
 
-    if labels is None:
-        labels_to_show = np.unique(y_test)
-    else:
-        labels_to_show = labels
+    # Classification report en formato dict (numérico)
+    report_dict = classification_report(
+        y_test, y_test_pred,
+        labels=labels,
+        digits=4,
+        output_dict=True,
+        zero_division=0
+    )
 
-    disp = ConfusionMatrixDisplay(confusion_matrix=conf_matrix,
-                                  display_labels=labels_to_show)
-    print(f"\nGenerando matriz de confusión para {title}:\n")
-    disp.plot(cmap="viridis")
-    plt.title(f"Matriz de confusión - {title}")
-    plt.show()
+    # ---- Prints opcionales ----
+    if verbose:
+        print(f"[{title}] Accuracy train: {train_accuracy:.4f} | test: {test_accuracy:.4f}")
+        print(f"[{title}] Balanced Acc train: {train_bal_acc:.4f} | test: {test_bal_acc:.4f}")
+        print(f"[{title}] Precision(1): {precision_test:.4f} | Recall(1): {recall_test:.4f} | F1(1): {f1_test:.4f}")
+        print(f"[{title}] Confusion matrix (test):\n{conf_matrix}")
 
-    # Classification report
-    print(f"\nGenerando classification report para {title}:\n")
-    print(classification_report(y_test, y_test_pred, digits=4))
-    class_report_dict = classification_report(y_test, y_test_pred, digits=4)
+    # ---- Plot opcional ----
+    if show_plot:
+        disp = ConfusionMatrixDisplay(confusion_matrix=conf_matrix, display_labels=list(labels))
+        disp.plot(cmap="viridis")
+        plt.title(f"Matriz de confusión - {title}")
+        plt.show()
 
     return {
+        # métricas simples (perfectas para DataFrame / sort)
         "train_accuracy": train_accuracy,
         "test_accuracy": test_accuracy,
+        "train_balanced_accuracy": train_bal_acc,
+        "test_balanced_accuracy": test_bal_acc,
+        "precision_test": precision_test,
+        "recall_test": recall_test,
+        "f1_test": f1_test,
+
+        # componentes CM por si quieres análisis FP/FN
+        "tn": int(tn), "fp": int(fp), "fn": int(fn), "tp": int(tp),
+
+        # extra por si quieres imprimir o auditar
         "conf_matrix": conf_matrix,
-        "classification_report": class_report_dict
+        "classification_report": report_dict
     }
+
+
+
+# def model_evaluation_matrix(y_train, y_test, y_train_pred, y_test_pred, title, labels=None):
+#     # Accuracies
+#     train_accuracy = accuracy_score(y_train, y_train_pred)
+#     test_accuracy = accuracy_score(y_test, y_test_pred)
+#
+#     print(f"Accuracy (train): {train_accuracy:.4f}")
+#     print(f"Accuracy (test) : {test_accuracy:.4f}")
+#
+#     # Matriz de confusión (sobre test)
+#     conf_matrix = confusion_matrix(y_test, y_test_pred, labels=labels)
+#
+#     if labels is None:
+#         labels_to_show = np.unique(y_test)
+#     else:
+#         labels_to_show = labels
+#
+#     disp = ConfusionMatrixDisplay(confusion_matrix=conf_matrix,
+#                                   display_labels=labels_to_show)
+#     print(f"\nGenerando matriz de confusión para {title}:\n")
+#     disp.plot(cmap="viridis")
+#     plt.title(f"Matriz de confusión - {title}")
+#     plt.show()
+#
+#     # Classification report
+#     print(f"\nGenerando classification report para {title}:\n")
+#     print(classification_report(y_test, y_test_pred, digits=4))
+#     class_report_dict = classification_report(y_test, y_test_pred, digits=4)
+#
+#     return {
+#         "train_accuracy": train_accuracy,
+#         "test_accuracy": test_accuracy,
+#         "conf_matrix": conf_matrix,
+#         "classification_report": class_report_dict
+#     }
 
 
 def generate_auc_roc_pr_auc(y_train, y_test, y_train_proba, y_test_proba):
@@ -89,6 +158,7 @@ def best_threshold_max_fbeta(y_true, y_proba, beta=2.0):
 def run_model_and_evaluate_reg_log(
     X_train, y_train, X_test, y_test, solver='lbfgs', sampler=None, sampling_strategy=None,
         balanced=None):
+
     oversamplers = {
         "smote": over_sm,
         "adasyn": over_adasyn,
@@ -114,7 +184,7 @@ def run_model_and_evaluate_reg_log(
 
     # 2) Oversampling solo en sub-train
     if sampler is not None:
-        X_tr_fit, y_tr_fit = oversamplers[sampler](X_tr, y_tr)
+        X_tr_fit, y_tr_fit = oversamplers[sampler](X_tr, y_tr, sampling_strategy)
     else:
         X_tr_fit, y_tr_fit = X_tr, y_tr
 
@@ -148,6 +218,7 @@ def run_model_and_evaluate_reg_log(
         "threshold": threshold,
         "val_precision_at_threshold": p_val,
         "val_recall_at_threshold": r_val,
+        "val_fbeta_at_threshold": fbeta_val,
         "sampler": sampler
     }
 

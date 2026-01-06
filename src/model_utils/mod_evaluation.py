@@ -259,7 +259,6 @@ def run_model_and_evaluate_xgb(
         sampling_strategy=None  # <- recomendado para reproducibilidad
 ):
     """
-    Opción B:
     - calibration set SOLO para umbral
     - early stopping con split train_es / val_es (sin oversampling en val_es)
     - refit final con train_es + val_es usando best_iteration
@@ -323,9 +322,10 @@ def run_model_and_evaluate_xgb(
 
     best_iter = int(xgb_es.best_iteration)
     n_estimators_used = best_iter + 1
+    print("Best iteration: ", best_iter)
 
     # 4) Refit final con (train_es + val_es) y n_estimators = best_iter+1
-    #    (oversampling SOLO en el conjunto de refit, nunca en calib/test)
+    #    (oversampling SOLO en el conjunto de refit)
     X_refit = np.vstack([X_tr, X_val]) if hasattr(X_tr, "shape") else X_tr.append(X_val)
     y_refit = np.concatenate([y_tr, y_val])
 
@@ -376,6 +376,7 @@ def run_model_and_evaluate_xgb(
         "best_iteration": best_iter,
         "n_estimators_used": n_estimators_used
     }
+    print(extra)
 
     return rf_metrics, roc_auc_dict, fp_id, fn_id, extra
 
